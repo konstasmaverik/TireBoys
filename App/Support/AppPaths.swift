@@ -6,4 +6,8 @@ enum AppPaths {
     static var drivesDirectory: URL {
         URL.documentsDirectory.appending(path: "Drives", directoryHint: .isDirectory)
     }
+
+    static var vehiclesDirectory: URL {
+        URL.documentsDirectory.appending(path: "Vehicles", directoryHint: .isDirectory)
+    }
 }

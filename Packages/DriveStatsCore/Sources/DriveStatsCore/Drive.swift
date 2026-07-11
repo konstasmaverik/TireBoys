@@ -8,6 +8,9 @@ public struct Drive: Codable, Equatable, Identifiable, Sendable {
     public var distanceMeters: Double
     public var topSpeedMetersPerSecond: Double
     public var points: [RoutePoint]
+    /// Optional in the schema so drives recorded before the garage existed
+    /// still decode; the app tags every new drive.
+    public var vehicleID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -15,7 +18,8 @@ public struct Drive: Codable, Equatable, Identifiable, Sendable {
         endedAt: Date,
         distanceMeters: Double,
         topSpeedMetersPerSecond: Double,
-        points: [RoutePoint]
+        points: [RoutePoint],
+        vehicleID: UUID? = nil
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -23,6 +27,7 @@ public struct Drive: Codable, Equatable, Identifiable, Sendable {
         self.distanceMeters = distanceMeters
         self.topSpeedMetersPerSecond = topSpeedMetersPerSecond
         self.points = points
+        self.vehicleID = vehicleID
     }
 
     public var duration: TimeInterval {

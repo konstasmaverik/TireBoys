@@ -30,13 +30,14 @@ public struct DriveAccumulator: Sendable {
         return nil
     }
 
-    public func finish(at endedAt: Date = Date()) -> Drive {
+    public func finish(at endedAt: Date = Date(), vehicleID: UUID? = nil) -> Drive {
         Drive(
             startedAt: startedAt,
             endedAt: endedAt,
             distanceMeters: distanceMeters,
             topSpeedMetersPerSecond: topSpeedMetersPerSecond,
-            points: points
+            points: points,
+            vehicleID: vehicleID
         )
     }
 }

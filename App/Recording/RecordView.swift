@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RecordView: View {
     @Bindable var model: RecordingViewModel
+    @Bindable var garage: Garage
 
     var body: some View {
         VStack(spacing: 32) {
@@ -14,6 +15,7 @@ struct RecordView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
+            vehiclePicker
             autoDetectToggle
             controlButton
         }
@@ -68,6 +70,25 @@ struct RecordView: View {
     }
 
     @ViewBuilder
+    private var vehiclePicker: some View {
+        if garage.vehicles.isEmpty {
+            Text("Add a vehicle in the Garage tab so drives get tagged.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        } else {
+            Picker(selection: $garage.activeVehicleID) {
+                ForEach(garage.vehicles) { vehicle in
+                    Text(vehicle.displayName).tag(UUID?.some(vehicle.id))
+                }
+            } label: {
+                Label("Vehicle", systemImage: "car")
+            }
+            .pickerStyle(.menu)
+            .disabled(model.isRecording)
+        }
+    }
+
+    @ViewBuilder
     private var autoDetectToggle: some View {
         if model.isAutoDetectSupported {
             VStack(spacing: 4) {
@@ -114,5 +135,5 @@ struct RecordView: View {
 }
 
 #Preview {
-    RecordView(model: RecordingViewModel())
+    RecordView(model: RecordingViewModel(), garage: Garage())
 }

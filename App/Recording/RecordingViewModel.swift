@@ -23,6 +23,11 @@ final class RecordingViewModel {
         }
     }
 
+    /// Supplies the vehicle to tag a finishing drive with (the garage's
+    /// active vehicle). A closure so background auto-stops get the current
+    /// value without this model owning garage state.
+    var vehicleIDProvider: (@MainActor () -> UUID?)?
+
     private let locationService: LocationService
     private let motionService: MotionActivityService
     private let store: JSONDriveStore?
@@ -92,7 +97,7 @@ final class RecordingViewModel {
         }
         do {
             guard let store else { throw CocoaError(.fileWriteUnknown) }
-            try store.save(finished.finish())
+            try store.save(finished.finish(vehicleID: vehicleIDProvider?()))
         } catch {
             saveError = "Could not save drive: \(error.localizedDescription)"
         }

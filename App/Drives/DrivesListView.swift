@@ -2,6 +2,8 @@ import DriveStatsCore
 import SwiftUI
 
 struct DrivesListView: View {
+    let garage: Garage
+
     @State private var drives: [Drive] = []
     @State private var loadError: String?
 
@@ -19,7 +21,8 @@ struct DrivesListView: View {
                 } else {
                     List {
                         ForEach(drives) { drive in
-                            DriveRow(drive: drive)
+                            DriveRow(drive: drive, vehicleName: garage.vehicle(for: drive.vehicleID)?.displayName)
+                                .contextMenu { vehicleMenu(for: drive) }
                         }
                         .onDelete(perform: delete)
                     }
@@ -28,6 +31,32 @@ struct DrivesListView: View {
             .navigationTitle("Drives")
         }
         .onAppear(perform: reload)
+    }
+
+    @ViewBuilder
+    private func vehicleMenu(for drive: Drive) -> some View {
+        if !garage.vehicles.isEmpty {
+            Menu("Assign vehicle") {
+                ForEach(garage.vehicles) { vehicle in
+                    Button {
+                        assign(vehicle.id, to: drive)
+                    } label: {
+                        if vehicle.id == drive.vehicleID {
+                            Label(vehicle.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(vehicle.displayName)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func assign(_ vehicleID: UUID, to drive: Drive) {
+        var updated = drive
+        updated.vehicleID = vehicleID
+        try? store?.save(updated)
+        reload()
     }
 
     private func reload() {
@@ -50,11 +79,18 @@ struct DrivesListView: View {
 
 private struct DriveRow: View {
     let drive: Drive
+    let vehicleName: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(drive.startedAt, format: .dateTime.day().month().hour().minute())
-                .font(.headline)
+            HStack {
+                Text(drive.startedAt, format: .dateTime.day().month().hour().minute())
+                    .font(.headline)
+                Spacer()
+                Text(vehicleName ?? "Unassigned")
+                    .font(.caption)
+                    .foregroundStyle(vehicleName == nil ? .tertiary : .secondary)
+            }
             HStack(spacing: 12) {
                 Label(Format.kilometers(drive.distanceMeters), systemImage: "road.lanes")
                 Label(Format.duration(drive.duration), systemImage: "clock")
@@ -71,5 +107,5 @@ private struct DriveRow: View {
 }
 
 #Preview {
-    DrivesListView()
+    DrivesListView(garage: Garage())
 }
