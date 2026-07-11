@@ -22,6 +22,22 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.requestWhenInUseAuthorization()
     }
 
+    /// Needed for auto-detection: starting precise updates from the background
+    /// (when motion activity says a drive began) requires Always authorization.
+    func requestAlwaysAuthorization() {
+        manager.requestAlwaysAuthorization()
+    }
+
+    /// Significant-change monitoring keeps the app being woken while it waits
+    /// for a drive to start; it survives suspension and even termination.
+    func startMonitoringSignificantChanges() {
+        manager.startMonitoringSignificantLocationChanges()
+    }
+
+    func stopMonitoringSignificantChanges() {
+        manager.stopMonitoringSignificantLocationChanges()
+    }
+
     func startUpdates() {
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         manager.activityType = .automotiveNavigation

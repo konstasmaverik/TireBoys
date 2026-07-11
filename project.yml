@@ -24,6 +24,8 @@ targets:
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: DriveStats records your speed, distance, and route while you drive. Location is only used during an active recording.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Allowing location access at all times lets DriveStats detect and record drives automatically, even when the app is in the background.
+        NSMotionUsageDescription: Motion activity is used to detect when a drive starts and ends so recording can happen automatically.
         UIBackgroundModes:
           - location
     settings:

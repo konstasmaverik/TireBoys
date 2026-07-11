@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RecordView: View {
-    @State private var model = RecordingViewModel()
+    @Bindable var model: RecordingViewModel
 
     var body: some View {
         VStack(spacing: 32) {
@@ -14,6 +14,7 @@ struct RecordView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
+            autoDetectToggle
             controlButton
         }
         .padding()
@@ -67,6 +68,22 @@ struct RecordView: View {
     }
 
     @ViewBuilder
+    private var autoDetectToggle: some View {
+        if model.isAutoDetectSupported {
+            VStack(spacing: 4) {
+                Toggle("Auto-detect drives", isOn: $model.isAutoDetectEnabled)
+                    .disabled(model.isDenied)
+                if model.isAutoDetectEnabled, !model.isRecording {
+                    Text("Recording starts automatically when driving is detected.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private var controlButton: some View {
         if model.isDenied {
             VStack(spacing: 8) {
@@ -97,5 +114,5 @@ struct RecordView: View {
 }
 
 #Preview {
-    RecordView()
+    RecordView(model: RecordingViewModel())
 }

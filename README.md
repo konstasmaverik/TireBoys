@@ -37,7 +37,7 @@ open DriveStats.xcodeproj
 - [ ] **M1 — Auth & profile**: Supabase, sign-up/log-in, unique username
 - [ ] **M2 — Garage**: add/remove vehicles (make, model, year)
 - [x] **M3 — Drive recorder core**: manual-trigger recording, live HUD, GPS filtering, offline-first save
-- [ ] **M4 — Automatic drive detection**: motion-activity triggers, background hardening
+- [x] **M4 — Automatic drive detection**: motion-activity triggers, background hardening
 - [ ] **M5 — Stats**: aggregated personal stats
 - [ ] **M6 — Friends**: username search + friend requests
 - [ ] **M7 — Groups**: private friend groups via invite code
