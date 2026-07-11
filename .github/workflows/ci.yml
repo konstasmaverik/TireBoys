@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    name: Core unit tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DriveStatsCore tests
+        run: swift test --package-path Packages/DriveStatsCore
+
+  build-ipa:
+    name: Build unsigned .ipa (macOS)
+    runs-on: macos-latest
+    needs: core-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild \
+            -project DriveStats.xcodeproj \
+            -scheme DriveStats \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R "build/Build/Products/Release-iphoneos/DriveStats.app" Payload/
+          zip -qry DriveStats.ipa Payload
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DriveStats-ipa
+          path: DriveStats.ipa
+          retention-days: 14
