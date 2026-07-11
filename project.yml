@@ -23,6 +23,9 @@ targets:
         CFBundleDisplayName: DriveStats
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
+        NSLocationWhenInUseUsageDescription: DriveStats records your speed, distance, and route while you drive. Location is only used during an active recording.
+        UIBackgroundModes:
+          - location
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.drivestats.app
