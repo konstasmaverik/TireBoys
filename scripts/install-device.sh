@@ -10,14 +10,19 @@ if ! [ -d DriveStats.xcodeproj ]; then
   xcodegen generate
 fi
 
-# codesign chokes on Finder metadata that Downloads/AirDrop leave on files.
+# Build outside the repo: ~/Documents is iCloud-synced, and the file-provider
+# xattrs iCloud stamps onto the .app make codesign fail with "resource fork,
+# Finder information, or similar detritus not allowed".
+DERIVED_DATA="$HOME/Library/Developer/DriveStats-build"
+
+# codesign also chokes on Finder metadata that Downloads/AirDrop leave on files.
 xattr -cr App Packages project.yml 2>/dev/null || true
 
 xcodebuild -project DriveStats.xcodeproj -scheme DriveStats \
   -destination "generic/platform=iOS" \
   -allowProvisioningUpdates \
-  -derivedDataPath build-device \
+  -derivedDataPath "$DERIVED_DATA" \
   build
 
 xcrun devicectl device install app --device "$DEVICE_ID" \
-  build-device/Build/Products/Debug-iphoneos/DriveStats.app
+  "$DERIVED_DATA/Build/Products/Debug-iphoneos/DriveStats.app"
