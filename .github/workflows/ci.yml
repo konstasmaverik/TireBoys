@@ -33,12 +33,14 @@ jobs:
 
       - name: Build unsigned app
         run: |
+          # Version bumps every build so AltStore offers sourced updates.
           xcodebuild \
             -project DriveStats.xcodeproj \
             -scheme DriveStats \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
+            MARKETING_VERSION="0.1.${{ github.run_number }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -57,6 +59,37 @@ jobs:
           path: DriveStats.ipa
           retention-days: 14
 
+      # AltStore source manifest: friends add this URL as a source in
+      # AltStore and get install + update buttons for DriveStats:
+      # https://github.com/konstasmaverik/TireBoys/releases/latest/download/source.json
+      - name: Generate AltStore source
+        if: github.ref == 'refs/heads/main'
+        run: |
+          python3 - <<'EOF'
+          import json, os, datetime
+          repo = "https://github.com/konstasmaverik/TireBoys"
+          json.dump({
+              "name": "TireBoys",
+              "identifier": "com.drivestats.source",
+              "subtitle": "DriveStats builds",
+              "apps": [{
+                  "name": "DriveStats",
+                  "bundleIdentifier": "com.drivestats.app",
+                  "developerName": "TireBoys",
+                  "localizedDescription": "Track your drives and race your friends on private leaderboards.",
+                  "iconURL": "https://raw.githubusercontent.com/konstasmaverik/TireBoys/main/App/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+                  "tintColor": "#E0402F",
+                  "versions": [{
+                      "version": "0.1." + os.environ["GITHUB_RUN_NUMBER"],
+                      "date": datetime.date.today().isoformat(),
+                      "downloadURL": f"{repo}/releases/latest/download/DriveStats.ipa",
+                      "size": os.path.getsize("DriveStats.ipa"),
+                      "minOSVersion": "17.0",
+                  }],
+              }],
+          }, open("source.json", "w"), indent=2)
+          EOF
+
       # Friends sideload from a stable public URL, no GitHub login needed:
       # https://github.com/konstasmaverik/TireBoys/releases/latest
       - name: Publish latest release
@@ -65,5 +98,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create latest --title "Latest build" \
-            --notes "Unsigned build of main; sideload with AltStore." || true
-          gh release upload latest DriveStats.ipa --clobber
+            --notes "Unsigned build of main; sideload with AltStore or add the source.json as an AltStore source." || true
+          gh release upload latest DriveStats.ipa source.json --clobber
