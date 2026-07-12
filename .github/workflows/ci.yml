@@ -20,6 +20,8 @@ jobs:
     name: Build unsigned .ipa (macOS)
     runs-on: macos-latest
     needs: core-tests
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -54,3 +56,14 @@ jobs:
           name: DriveStats-ipa
           path: DriveStats.ipa
           retention-days: 14
+
+      # Friends sideload from a stable public URL, no GitHub login needed:
+      # https://github.com/konstasmaverik/TireBoys/releases/latest
+      - name: Publish latest release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create latest --title "Latest build" \
+            --notes "Unsigned build of main; sideload with AltStore." || true
+          gh release upload latest DriveStats.ipa --clobber
