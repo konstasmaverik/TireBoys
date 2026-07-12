@@ -99,6 +99,7 @@ private struct VehicleEditorSheet: View {
     @State private var isGenerating = false
     @State private var generationError: String?
     @State private var paint = ""
+    @State private var geminiKey = VehicleIconGenerator.geminiAPIKey
 
     private static let paintNames = [
         "red", "orange", "yellow", "green", "blue", "purple",
@@ -228,10 +229,18 @@ private struct VehicleEditorSheet: View {
                             .font(.footnote)
                             .foregroundStyle(.red)
                     }
+                    SecureField("Gemini API key (optional, better icons)", text: $geminiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onChange(of: geminiKey) { _, new in
+                            VehicleIconGenerator.geminiAPIKey = new.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
                 } header: {
                     Text("Cartoon icon")
                 } footer: {
-                    Text("Detects the car's color on this device, then a free service draws the cartoon. The photo never leaves your phone. Needs internet; quality varies — re-roll for a new take.")
+                    Text(VehicleIconGenerator.geminiAPIKey.isEmpty
+                        ? "Without a key: color is detected on-device and a free service draws from a text description — the photo never leaves your phone. With a free Gemini key from aistudio.google.com, the photo is sent to Google, which redraws your actual car (much closer results). The key stays on this device."
+                        : "Gemini mode: the photo is sent to Google and your actual car is redrawn as a sticker. Clear the key to go back to text-only generation.")
                 }
                 .onChange(of: photoItem) { _, item in
                     guard let item else { return }
@@ -291,7 +300,7 @@ private struct VehicleEditorSheet: View {
                 year: year
             )
             do {
-                let icon = try await VehicleIconGenerator.generateIcon(for: described, paint: paint)
+                let icon = try await VehicleIconGenerator.generateIcon(for: described, paint: paint, photo: sourcePhoto)
                 VehicleIconStore.save(icon, for: vehicleID)
                 generatedIcon = icon
             } catch {

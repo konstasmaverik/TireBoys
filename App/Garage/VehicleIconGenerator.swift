@@ -14,13 +14,22 @@ enum VehicleIconGenerator {
     enum GenerationError: LocalizedError {
         case badImage
         case serviceFailed
+        case geminiRejected(String)
 
         var errorDescription: String? {
             switch self {
             case .badImage: "Couldn't read that photo."
             case .serviceFailed: "The icon service didn't respond — try again."
+            case .geminiRejected(let reason): "Gemini: \(reason)"
             }
         }
+    }
+
+    /// Users paste their own free key (aistudio.google.com); it never leaves
+    /// this device. Empty means fall back to text-prompt generation.
+    static var geminiAPIKey: String {
+        get { UserDefaults.standard.string(forKey: "geminiAPIKey") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "geminiAPIKey") }
     }
 
     /// Detects the car's paint color from the photo, on-device. The result
@@ -31,7 +40,69 @@ enum VehicleIconGenerator {
         return colorName(of: subject)
     }
 
-    static func generateIcon(for vehicle: Vehicle, paint: String) async throws -> UIImage {
+    /// Prefers Gemini (sees the actual photo) when a key is set; otherwise
+    /// text-prompt generation via pollinations.
+    static func generateIcon(for vehicle: Vehicle, paint: String, photo: UIImage?) async throws -> UIImage {
+        if !geminiAPIKey.isEmpty, let photo {
+            return try await geminiIcon(for: vehicle, paint: paint, photo: photo)
+        }
+        return try await pollinationsIcon(for: vehicle, paint: paint)
+    }
+
+    /// gemini-2.5-flash-image redraws the photographed car as a sticker,
+    /// preserving its real shape and details.
+    private static func geminiIcon(for vehicle: Vehicle, paint: String, photo: UIImage) async throws -> UIImage {
+        guard let jpeg = photo.resized(maxDimension: 768).jpegData(compressionQuality: 0.7) else {
+            throw GenerationError.badImage
+        }
+
+        let prompt = """
+        Redraw the car in this photo as a cute flat emoji sticker: simple rounded \
+        cartoon with thick outlines, \(paint) paint, side view, plain white \
+        background, no text. Keep the real car's shape, proportions, and \
+        distinctive details recognizable.
+        """
+        let body: [String: Any] = [
+            "contents": [[
+                "parts": [
+                    ["inlineData": ["mimeType": "image/jpeg", "data": jpeg.base64EncodedString()]],
+                    ["text": prompt],
+                ],
+            ]],
+        ]
+
+        var request = URLRequest(url: URL(string:
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(geminiAPIKey, forHTTPHeaderField: "x-goog-api-key")
+        request.timeoutInterval = 90
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request) else {
+            throw GenerationError.serviceFailed
+        }
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            let message = ((json?["error"] as? [String: Any])?["message"] as? String) ?? "request failed"
+            throw GenerationError.geminiRejected(message)
+        }
+
+        let parts = (((json?["candidates"] as? [[String: Any]])?.first?["content"]
+            as? [String: Any])?["parts"] as? [[String: Any]]) ?? []
+        for part in parts {
+            if let inline = part["inlineData"] as? [String: Any],
+               let base64 = inline["data"] as? String,
+               let imageData = Data(base64Encoded: base64),
+               let image = UIImage(data: imageData) {
+                let cutout = await subjectCutout(of: image) ?? image
+                return cutout.resized(maxDimension: 256)
+            }
+        }
+        throw GenerationError.geminiRejected("no image returned — try re-rolling")
+    }
+
+    private static func pollinationsIcon(for vehicle: Vehicle, paint: String) async throws -> UIImage {
         // The color is stated twice: the generator weighs early and repeated
         // words more, and paint color is what users notice first.
         let prompt = "cute flat emoji sticker of a \(paint) \(vehicle.year) \(vehicle.make) \(vehicle.model) car with \(paint) paint, side view, simple rounded cartoon, thick outline, plain white background, no text"
