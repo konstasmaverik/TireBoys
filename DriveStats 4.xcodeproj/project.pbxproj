@@ -15,7 +15,6 @@
 		2A0D68C417539B70AAEA915D /* AppPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652CE6FBCDDB3DA6716299FE /* AppPaths.swift */; };
 		30484C3EE485B55BCD8B4294 /* SocialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20E2025C2DD57E6667D7596 /* SocialView.swift */; };
 		3A67F561BE1AC16EECD8866F /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E74A24BBA3F88E722148D01D /* Supabase */; };
-		40A4098350FE999254FADF52 /* RecordingViewModel 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66579A4A962B96072066AC10 /* RecordingViewModel 2.swift */; };
 		559E246C5BE3CACCB44134E2 /* BackendModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF3BE93A6FF92A299C5FF3E /* BackendModels.swift */; };
 		708DEBE431D7495E94E97EA3 /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB2551398B741BFBB03E6A2 /* RecordingViewModel.swift */; };
 		76E34993B781930951ABA84D /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6AE37CC3DBA3727EAB2A50 /* AvatarView.swift */; };
@@ -42,7 +41,6 @@
 		5327EBC87A655589BDFF8842 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		60216A14C53B8D50DDE96D27 /* DriveStatsCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DriveStatsCore; path = Packages/DriveStatsCore; sourceTree = SOURCE_ROOT; };
 		652CE6FBCDDB3DA6716299FE /* AppPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPaths.swift; sourceTree = "<group>"; };
-		66579A4A962B96072066AC10 /* RecordingViewModel 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingViewModel 2.swift"; sourceTree = "<group>"; };
 		680B48CE4A27749F9FFE9914 /* GarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageView.swift; sourceTree = "<group>"; };
 		6D02DEC302DDDF2FC2C00099 /* Garage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Garage.swift; sourceTree = "<group>"; };
 		77E5B85531D1CE78F8D5C66B /* RecordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordView.swift; sourceTree = "<group>"; };
@@ -104,7 +102,6 @@
 			children = (
 				90626113A1C117E15E382FD0 /* LocationService.swift */,
 				B0C514E2C256E39A9FAF84F1 /* MotionActivityService.swift */,
-				66579A4A962B96072066AC10 /* RecordingViewModel 2.swift */,
 				AAB2551398B741BFBB03E6A2 /* RecordingViewModel.swift */,
 				77E5B85531D1CE78F8D5C66B /* RecordView.swift */,
 			);
@@ -259,7 +256,6 @@
 				B8601B53841443627107508C /* LocationService.swift in Sources */,
 				DFE19EDB64BC96718983631E /* MotionActivityService.swift in Sources */,
 				F0598DB9467BB192248D80D3 /* RecordView.swift in Sources */,
-				40A4098350FE999254FADF52 /* RecordingViewModel 2.swift in Sources */,
 				708DEBE431D7495E94E97EA3 /* RecordingViewModel.swift in Sources */,
 				30484C3EE485B55BCD8B4294 /* SocialView.swift in Sources */,
 				F9A1DFE2A18CD0EDB52F0D0E /* StatsView.swift in Sources */,

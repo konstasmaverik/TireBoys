@@ -78,7 +78,7 @@ struct RecordView: View {
         } else {
             Picker(selection: $garage.activeVehicleID) {
                 ForEach(garage.vehicles) { vehicle in
-                    Label(vehicle.displayName, systemImage: vehicle.bodyStyle.symbolName)
+                    Text("\(vehicle.emoji) \(vehicle.displayName)")
                         .tag(UUID?.some(vehicle.id))
                 }
             } label: {

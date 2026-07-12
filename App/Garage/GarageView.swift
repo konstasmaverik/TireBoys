@@ -89,8 +89,7 @@ private struct VehicleEditorSheet: View {
     @State private var make: String
     @State private var model: String
     @State private var year: Int
-    @State private var bodyStyle: Vehicle.BodyStyle
-    @State private var colorHex: String
+    @State private var emoji: String
 
     init(vehicle: Vehicle?, onSave: @escaping (Vehicle) -> Void) {
         self.vehicle = vehicle
@@ -98,8 +97,7 @@ private struct VehicleEditorSheet: View {
         _make = State(initialValue: vehicle?.make ?? "")
         _model = State(initialValue: vehicle?.model ?? "")
         _year = State(initialValue: vehicle?.year ?? Calendar.current.component(.year, from: Date()))
-        _bodyStyle = State(initialValue: vehicle?.bodyStyle ?? .sedan)
-        _colorHex = State(initialValue: vehicle?.colorHex ?? VehiclePaint.palette[0])
+        _emoji = State(initialValue: vehicle?.emoji ?? VehicleEmoji.suggestions[0])
     }
 
     private var canSave: Bool {
@@ -124,38 +122,30 @@ private struct VehicleEditorSheet: View {
                 }
 
                 Section("Icon") {
-                    Picker("Body style", selection: $bodyStyle) {
-                        ForEach(Vehicle.BodyStyle.allCases, id: \.self) { style in
-                            Label(style.label, systemImage: style.symbolName).tag(style)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-
-                    HStack(spacing: 10) {
-                        ForEach(VehiclePaint.palette, id: \.self) { hex in
-                            Circle()
-                                .fill(Color(hex: hex))
-                                .frame(width: 28, height: 28)
-                                .overlay {
-                                    if hex == colorHex {
-                                        Circle().strokeBorder(.primary, lineWidth: 2)
-                                    } else {
-                                        Circle().strokeBorder(.quaternary, lineWidth: 1)
-                                    }
-                                }
-                                .onTapGesture { colorHex = hex }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 8) {
+                        ForEach(VehicleEmoji.suggestions, id: \.self) { suggestion in
+                            Text(suggestion)
+                                .font(.system(size: 30))
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(
+                                    suggestion == emoji ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                                    in: RoundedRectangle(cornerRadius: 8)
+                                )
+                                .onTapGesture { emoji = suggestion }
                         }
                     }
 
                     HStack {
-                        Spacer()
-                        Image(systemName: bodyStyle.symbolName)
-                            .font(.system(size: 44))
-                            .foregroundStyle(Color(hex: colorHex))
-                        Spacer()
+                        TextField("Or type any emoji", text: $emoji)
+                            .onChange(of: emoji) { _, new in
+                                // Keep exactly one character (an emoji counts as one).
+                                if let last = new.last, new.count > 1 {
+                                    emoji = String(last)
+                                }
+                            }
+                        Text(emoji)
+                            .font(.system(size: 36))
                     }
-                    .padding(.vertical, 4)
                 }
             }
             .navigationTitle(vehicle == nil ? "Add Vehicle" : "Edit Vehicle")
@@ -170,8 +160,7 @@ private struct VehicleEditorSheet: View {
                         saved.make = make.trimmingCharacters(in: .whitespaces)
                         saved.model = model.trimmingCharacters(in: .whitespaces)
                         saved.year = year
-                        saved.bodyStyle = bodyStyle
-                        saved.colorHex = colorHex
+                        saved.emoji = emoji.isEmpty ? "🚗" : emoji
                         onSave(saved)
                         dismiss()
                     }
