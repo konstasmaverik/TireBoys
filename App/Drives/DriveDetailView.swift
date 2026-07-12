@@ -6,6 +6,7 @@ import SwiftUI
 struct DriveDetailView: View {
     let drive: Drive
     let vehicleName: String?
+    @AppStorage(Format.useMilesKey) private var useMiles = false
 
     private var coordinates: [CLLocationCoordinate2D] {
         drive.points.map {
@@ -34,9 +35,9 @@ struct DriveDetailView: View {
     private var statsHeader: some View {
         Grid(horizontalSpacing: 24, verticalSpacing: 8) {
             GridRow {
-                stat("Distance", Format.kilometers(drive.distanceMeters))
+                stat("Distance", Format.distance(drive.distanceMeters))
                 stat("Duration", Format.duration(drive.duration))
-                stat("Top speed", Format.kilometersPerHour(drive.topSpeedMetersPerSecond) + " km/h")
+                stat("Top speed", Format.speedWithUnit(drive.topSpeedMetersPerSecond))
             }
             if let vehicleName {
                 GridRow {

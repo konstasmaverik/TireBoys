@@ -6,6 +6,7 @@ struct DrivesListView: View {
 
     @State private var drives: [Drive] = []
     @State private var loadError: String?
+    @AppStorage(Format.useMilesKey) private var useMiles = false
 
     private let store = try? JSONDriveStore(directory: AppPaths.drivesDirectory)
 
@@ -109,10 +110,10 @@ private struct DriveRow: View {
                 }
             }
             HStack(spacing: 12) {
-                Label(Format.kilometers(drive.distanceMeters), systemImage: "road.lanes")
+                Label(Format.distance(drive.distanceMeters), systemImage: "road.lanes")
                 Label(Format.duration(drive.duration), systemImage: "clock")
                 Label(
-                    Format.kilometersPerHour(drive.topSpeedMetersPerSecond) + " km/h",
+                    Format.speedWithUnit(drive.topSpeedMetersPerSecond),
                     systemImage: "gauge.with.needle"
                 )
             }

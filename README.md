@@ -42,4 +42,4 @@ open DriveStats.xcodeproj
 - [x] **M6 — Friends**: username search + friend requests
 - [x] **M7 — Groups**: private friend groups via invite code
 - [x] **M8 — Leaderboards**: per-group ranking, metric filters, live updates
-- [ ] **M9 — Polish**
+- [x] **M9 — Polish**

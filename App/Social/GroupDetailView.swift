@@ -8,6 +8,7 @@ struct GroupDetailView: View {
     @State private var entries: [LeaderboardEntry] = []
     @State private var metric: Metric = .topSpeed
     @State private var period: StatsView.Period = .week
+    @AppStorage(Format.useMilesKey) private var useMiles = false
 
     enum Metric: String, CaseIterable, Identifiable {
         case overall = "Overall"
@@ -46,8 +47,8 @@ struct GroupDetailView: View {
     private func formattedScore(_ entry: LeaderboardEntry) -> String {
         switch metric {
         case .overall: String(format: "%.0f pts", overallScore(entry, in: entries))
-        case .topSpeed: Format.kilometersPerHour(entry.topSpeedMetersPerSecond) + " km/h"
-        case .distance: Format.kilometers(entry.totalDistanceMeters)
+        case .topSpeed: Format.speedWithUnit(entry.topSpeedMetersPerSecond)
+        case .distance: Format.distance(entry.totalDistanceMeters)
         case .timeInCar: Format.duration(entry.totalDurationSeconds)
         }
     }
@@ -114,6 +115,14 @@ struct GroupDetailView: View {
         .navigationTitle(group.name)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: period) { await reload() }
+        .task {
+            // The README promised live-ish leaderboards; polling every 30 s
+            // is plenty for a friend-group ranking.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                await reload()
+            }
+        }
         .refreshable { await reload() }
     }
 

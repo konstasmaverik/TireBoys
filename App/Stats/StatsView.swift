@@ -7,6 +7,7 @@ struct StatsView: View {
     @State private var drives: [Drive] = []
     @State private var period: Period = .allTime
     @State private var vehicleFilterID: UUID?
+    @AppStorage(Format.useMilesKey) private var useMiles = false
 
     private let store = try? JSONDriveStore(directory: AppPaths.drivesDirectory)
 
@@ -54,7 +55,14 @@ struct StatsView: View {
                 .padding()
             }
             .navigationTitle("Stats")
-            .toolbar { vehicleFilterMenu }
+            .toolbar {
+                vehicleFilterMenu
+                Menu {
+                    Toggle("Use miles", isOn: $useMiles)
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            }
         }
         .onAppear(perform: reload)
     }
@@ -62,15 +70,15 @@ struct StatsView: View {
     private var statCards: some View {
         Grid(horizontalSpacing: 12, verticalSpacing: 12) {
             GridRow {
-                card("Distance", Format.kilometers(summary.totalDistanceMeters), "road.lanes")
+                card("Distance", Format.distance(summary.totalDistanceMeters), "road.lanes")
                 card("Time in car", Format.duration(summary.totalDuration), "clock")
             }
             GridRow {
-                card("Top speed", Format.kilometersPerHour(summary.topSpeedMetersPerSecond) + " km/h", "gauge.with.needle")
+                card("Top speed", Format.speedWithUnit(summary.topSpeedMetersPerSecond), "gauge.with.needle")
                 card("Drives", String(summary.driveCount), "point.bottomleft.forward.to.point.topright.scurvepath")
             }
             GridRow {
-                card("Longest drive", Format.kilometers(summary.longestDriveMeters), "arrow.up.right")
+                card("Longest drive", Format.distance(summary.longestDriveMeters), "arrow.up.right")
                     .gridCellColumns(2)
             }
         }

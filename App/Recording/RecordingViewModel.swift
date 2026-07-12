@@ -2,6 +2,7 @@ import CoreLocation
 import DriveStatsCore
 import Foundation
 import Observation
+import UIKit
 
 @MainActor
 @Observable
@@ -84,6 +85,9 @@ final class RecordingViewModel {
         locationService.startUpdates()
         policy.syncRecordingState(isRecording: true)
         updateTickTimer()
+        // A dash-mounted phone must not lock mid-drive.
+        UIApplication.shared.isIdleTimerDisabled = true
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     func stopDrive() {
@@ -93,6 +97,8 @@ final class RecordingViewModel {
         currentSpeedMetersPerSecond = 0
         policy.syncRecordingState(isRecording: false)
         updateTickTimer()
+        UIApplication.shared.isIdleTimerDisabled = false
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
 
         guard let finished = accumulator, !finished.points.isEmpty else {
             accumulator = nil

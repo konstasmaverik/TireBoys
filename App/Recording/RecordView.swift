@@ -3,6 +3,8 @@ import SwiftUI
 struct RecordView: View {
     @Bindable var model: RecordingViewModel
     @Bindable var garage: Garage
+    // Triggers re-render when the km/mi setting changes.
+    @AppStorage(Format.useMilesKey) private var useMiles = false
 
     var body: some View {
         VStack(spacing: 32) {
@@ -29,11 +31,11 @@ struct RecordView: View {
 
     private var speedHUD: some View {
         VStack(spacing: 4) {
-            Text(Format.kilometersPerHour(model.currentSpeedMetersPerSecond))
+            Text(Format.speed(model.currentSpeedMetersPerSecond))
                 .font(.system(size: 96, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .contentTransition(.numericText())
-            Text("km/h")
+            Text(Format.speedUnit)
                 .font(.title3)
                 .foregroundStyle(.secondary)
         }
@@ -42,8 +44,8 @@ struct RecordView: View {
     private var statsGrid: some View {
         Grid(horizontalSpacing: 24, verticalSpacing: 8) {
             GridRow {
-                stat(label: "Distance", value: Format.kilometers(model.accumulator?.distanceMeters ?? 0))
-                stat(label: "Top speed", value: Format.kilometersPerHour(model.accumulator?.topSpeedMetersPerSecond ?? 0) + " km/h")
+                stat(label: "Distance", value: Format.distance(model.accumulator?.distanceMeters ?? 0))
+                stat(label: "Top speed", value: Format.speedWithUnit(model.accumulator?.topSpeedMetersPerSecond ?? 0))
                 durationStat
             }
         }
