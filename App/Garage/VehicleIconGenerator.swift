@@ -13,23 +13,16 @@ import Vision
 enum VehicleIconGenerator {
     enum GenerationError: LocalizedError {
         case badImage
+        case noSubject
         case serviceFailed
-        case geminiRejected(String)
 
         var errorDescription: String? {
             switch self {
             case .badImage: "Couldn't read that photo."
+            case .noSubject: "Couldn't find the car in that photo — try one where it fills more of the frame."
             case .serviceFailed: "The icon service didn't respond — try again."
-            case .geminiRejected(let reason): "Gemini: \(reason)"
             }
         }
-    }
-
-    /// Users paste their own free key (aistudio.google.com); it never leaves
-    /// this device. Empty means fall back to text-prompt generation.
-    static var geminiAPIKey: String {
-        get { UserDefaults.standard.string(forKey: "geminiAPIKey") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "geminiAPIKey") }
     }
 
     /// Detects the car's paint color from the photo, on-device. The result
@@ -40,69 +33,51 @@ enum VehicleIconGenerator {
         return colorName(of: subject)
     }
 
-    /// Prefers Gemini (sees the actual photo) when a key is set; otherwise
-    /// text-prompt generation via pollinations.
-    static func generateIcon(for vehicle: Vehicle, paint: String, photo: UIImage?) async throws -> UIImage {
-        if !geminiAPIKey.isEmpty, let photo {
-            return try await geminiIcon(for: vehicle, paint: paint, photo: photo)
-        }
-        return try await pollinationsIcon(for: vehicle, paint: paint)
+    /// Fully on-device sticker: the car is lifted from the photo, its colors
+    /// flattened into cartoon-like bands, and a thick white sticker outline
+    /// drawn around it. Deterministic and offline.
+    static func stickerIcon(from photo: UIImage) async throws -> UIImage {
+        guard photo.cgImage != nil else { throw GenerationError.badImage }
+        guard let cutout = await subjectCutout(of: photo) else { throw GenerationError.noSubject }
+        return cartoonify(cutout).resized(maxDimension: 256)
     }
 
-    /// gemini-2.5-flash-image redraws the photographed car as a sticker,
-    /// preserving its real shape and details.
-    private static func geminiIcon(for vehicle: Vehicle, paint: String, photo: UIImage) async throws -> UIImage {
-        guard let jpeg = photo.resized(maxDimension: 768).jpegData(compressionQuality: 0.7) else {
-            throw GenerationError.badImage
+    private static func cartoonify(_ image: UIImage) -> UIImage {
+        // Work on a padded canvas so the outline has room to grow.
+        let padding: CGFloat = 24
+        let canvasSize = CGSize(width: image.size.width + padding * 2, height: image.size.height + padding * 2)
+        let padded = UIGraphicsImageRenderer(size: canvasSize).image { _ in
+            image.draw(at: CGPoint(x: padding, y: padding))
         }
+        guard let input = CIImage(image: padded) else { return image }
 
-        let prompt = """
-        Redraw the car in this photo as a cute flat emoji sticker: simple rounded \
-        cartoon with thick outlines, \(paint) paint, side view, plain white \
-        background, no text. Keep the real car's shape, proportions, and \
-        distinctive details recognizable.
-        """
-        let body: [String: Any] = [
-            "contents": [[
-                "parts": [
-                    ["inlineData": ["mimeType": "image/jpeg", "data": jpeg.base64EncodedString()]],
-                    ["text": prompt],
-                ],
-            ]],
-        ]
+        // Slight blur then posterize flattens photo shading into flat
+        // cartoon-like color bands.
+        let flattened = input
+            .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.5])
+            .cropped(to: input.extent)
+            .applyingFilter("CIColorPosterize", parameters: ["inputLevels": 6])
 
-        var request = URLRequest(url: URL(string:
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent")!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(geminiAPIKey, forHTTPHeaderField: "x-goog-api-key")
-        request.timeoutInterval = 90
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        // The sticker outline: dilate the shape and fill it white behind it.
+        let dilated = flattened
+            .applyingFilter("CIMorphologyMaximum", parameters: [kCIInputRadiusKey: 10])
+            .cropped(to: input.extent)
+        let white = CIImage(color: .white).cropped(to: input.extent)
+        let clear = CIImage(color: .clear).cropped(to: input.extent)
+        let silhouette = white.applyingFilter("CIBlendWithAlphaMask", parameters: [
+            kCIInputBackgroundImageKey: clear,
+            kCIInputMaskImageKey: dilated,
+        ])
+        let composed = flattened.composited(over: silhouette)
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request) else {
-            throw GenerationError.serviceFailed
-        }
-        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            let message = ((json?["error"] as? [String: Any])?["message"] as? String) ?? "request failed"
-            throw GenerationError.geminiRejected(message)
-        }
-
-        let parts = (((json?["candidates"] as? [[String: Any]])?.first?["content"]
-            as? [String: Any])?["parts"] as? [[String: Any]]) ?? []
-        for part in parts {
-            if let inline = part["inlineData"] as? [String: Any],
-               let base64 = inline["data"] as? String,
-               let imageData = Data(base64Encoded: base64),
-               let image = UIImage(data: imageData) {
-                let cutout = await subjectCutout(of: image) ?? image
-                return cutout.resized(maxDimension: 256)
-            }
-        }
-        throw GenerationError.geminiRejected("no image returned — try re-rolling")
+        let context = CIContext()
+        guard let output = context.createCGImage(composed, from: composed.extent) else { return image }
+        return UIImage(cgImage: output)
     }
 
-    private static func pollinationsIcon(for vehicle: Vehicle, paint: String) async throws -> UIImage {
+    /// Text-prompt cartoon via pollinations.ai (free, keyless): only the
+    /// color/make/model description leaves the phone. Random per roll.
+    static func generateIcon(for vehicle: Vehicle, paint: String) async throws -> UIImage {
         // The color is stated twice: the generator weighs early and repeated
         // words more, and paint color is what users notice first.
         let prompt = "cute flat emoji sticker of a \(paint) \(vehicle.year) \(vehicle.make) \(vehicle.model) car with \(paint) paint, side view, simple rounded cartoon, thick outline, plain white background, no text"

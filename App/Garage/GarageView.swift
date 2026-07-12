@@ -99,7 +99,6 @@ private struct VehicleEditorSheet: View {
     @State private var isGenerating = false
     @State private var generationError: String?
     @State private var paint = ""
-    @State private var geminiKey = VehicleIconGenerator.geminiAPIKey
 
     private static let paintNames = [
         "red", "orange", "yellow", "green", "blue", "purple",
@@ -178,41 +177,36 @@ private struct VehicleEditorSheet: View {
                         }
                     }
                     PhotosPicker(selection: $photoItem, matching: .images) {
-                        Label(
-                            generatedIcon == nil ? "Generate from a photo" : "Generate from another photo",
-                            systemImage: "sparkles"
-                        )
+                        Label("Make sticker from a photo", systemImage: "person.crop.square.badge.camera")
                     }
-                    if sourcePhoto != nil {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Paint color — fix it if the detection got it wrong, then re-roll")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 6) {
-                                    ForEach(Self.paintNames, id: \.self) { name in
-                                        Text(name)
-                                            .font(.callout)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 5)
-                                            .background(
-                                                name == paint ? AnyShapeStyle(.tint.opacity(0.25)) : AnyShapeStyle(.quaternary),
-                                                in: Capsule()
-                                            )
-                                            .onTapGesture { paint = name }
-                                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Or draw an AI cartoon — pick the paint color first")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(Self.paintNames, id: \.self) { name in
+                                    Text(name)
+                                        .font(.callout)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(
+                                            name == paint ? AnyShapeStyle(.tint.opacity(0.25)) : AnyShapeStyle(.quaternary),
+                                            in: Capsule()
+                                        )
+                                        .onTapGesture { paint = name }
                                 }
                             }
                         }
                     }
-                    if sourcePhoto != nil || generatedIcon != nil {
-                        Button {
-                            generate()
-                        } label: {
-                            Label("Re-roll", systemImage: "dice")
-                        }
-                        .disabled(sourcePhoto == nil || isGenerating)
-                        Button("Remove generated icon", role: .destructive) {
+                    Button {
+                        generateAICartoon()
+                    } label: {
+                        Label("Draw AI cartoon", systemImage: "dice")
+                    }
+                    .disabled(isGenerating || make.isEmpty || model.isEmpty)
+                    if generatedIcon != nil {
+                        Button("Remove icon", role: .destructive) {
                             VehicleIconStore.delete(for: vehicleID)
                             generatedIcon = nil
                         }
@@ -229,18 +223,10 @@ private struct VehicleEditorSheet: View {
                             .font(.footnote)
                             .foregroundStyle(.red)
                     }
-                    SecureField("Gemini API key (optional, better icons)", text: $geminiKey)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onChange(of: geminiKey) { _, new in
-                            VehicleIconGenerator.geminiAPIKey = new.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
                 } header: {
-                    Text("Cartoon icon")
+                    Text("Sticker icon")
                 } footer: {
-                    Text(VehicleIconGenerator.geminiAPIKey.isEmpty
-                        ? "Without a key: color is detected on-device and a free service draws from a text description — the photo never leaves your phone. With a free Gemini key from aistudio.google.com, the photo is sent to Google, which redraws your actual car (much closer results). The key stays on this device."
-                        : "Gemini mode: the photo is sent to Google and your actual car is redrawn as a sticker. Clear the key to go back to text-only generation.")
+                    Text("Sticker: your car is cut out of the photo and cartoonified entirely on this phone — exact shape and color, nothing leaves the device. AI cartoon: a free service draws from the text description only; tap again for a different take.")
                 }
                 .onChange(of: photoItem) { _, item in
                     guard let item else { return }
@@ -250,8 +236,10 @@ private struct VehicleEditorSheet: View {
                               let photo = UIImage(data: data)
                         else { return }
                         sourcePhoto = photo
-                        paint = await VehicleIconGenerator.detectPaint(of: photo) ?? "red"
-                        generate()
+                        if let detected = await VehicleIconGenerator.detectPaint(of: photo) {
+                            paint = detected
+                        }
+                        generateSticker(from: photo)
                     }
                 }
             }
@@ -285,8 +273,22 @@ private struct VehicleEditorSheet: View {
         .presentationDetents([.large])
     }
 
-    private func generate() {
-        guard sourcePhoto != nil else { return }
+    private func generateSticker(from photo: UIImage) {
+        generationError = nil
+        isGenerating = true
+        Task {
+            defer { isGenerating = false }
+            do {
+                let icon = try await VehicleIconGenerator.stickerIcon(from: photo)
+                VehicleIconStore.save(icon, for: vehicleID)
+                generatedIcon = icon
+            } catch {
+                generationError = error.localizedDescription
+            }
+        }
+    }
+
+    private func generateAICartoon() {
         generationError = nil
         isGenerating = true
         Task {
@@ -300,7 +302,10 @@ private struct VehicleEditorSheet: View {
                 year: year
             )
             do {
-                let icon = try await VehicleIconGenerator.generateIcon(for: described, paint: paint, photo: sourcePhoto)
+                let icon = try await VehicleIconGenerator.generateIcon(
+                    for: described,
+                    paint: paint.isEmpty ? "red" : paint
+                )
                 VehicleIconStore.save(icon, for: vehicleID)
                 generatedIcon = icon
             } catch {
