@@ -98,6 +98,12 @@ private struct VehicleEditorSheet: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var isGenerating = false
     @State private var generationError: String?
+    @State private var paint = ""
+
+    private static let paintNames = [
+        "red", "orange", "yellow", "green", "blue", "purple",
+        "pink", "black", "silver", "white", "brown",
+    ]
 
     init(vehicle: Vehicle?, onSave: @escaping (Vehicle) -> Void) {
         self.vehicle = vehicle
@@ -176,6 +182,28 @@ private struct VehicleEditorSheet: View {
                             systemImage: "sparkles"
                         )
                     }
+                    if sourcePhoto != nil {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Paint color — fix it if the detection got it wrong, then re-roll")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(Self.paintNames, id: \.self) { name in
+                                        Text(name)
+                                            .font(.callout)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .background(
+                                                name == paint ? AnyShapeStyle(.tint.opacity(0.25)) : AnyShapeStyle(.quaternary),
+                                                in: Capsule()
+                                            )
+                                            .onTapGesture { paint = name }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if sourcePhoto != nil || generatedIcon != nil {
                         Button {
                             generate()
@@ -213,6 +241,7 @@ private struct VehicleEditorSheet: View {
                               let photo = UIImage(data: data)
                         else { return }
                         sourcePhoto = photo
+                        paint = await VehicleIconGenerator.detectPaint(of: photo) ?? "red"
                         generate()
                     }
                 }
@@ -248,7 +277,7 @@ private struct VehicleEditorSheet: View {
     }
 
     private func generate() {
-        guard let sourcePhoto else { return }
+        guard sourcePhoto != nil else { return }
         generationError = nil
         isGenerating = true
         Task {
@@ -262,7 +291,7 @@ private struct VehicleEditorSheet: View {
                 year: year
             )
             do {
-                let icon = try await VehicleIconGenerator.generateIcon(for: described, from: sourcePhoto)
+                let icon = try await VehicleIconGenerator.generateIcon(for: described, paint: paint)
                 VehicleIconStore.save(icon, for: vehicleID)
                 generatedIcon = icon
             } catch {

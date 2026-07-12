@@ -23,13 +23,18 @@ enum VehicleIconGenerator {
         }
     }
 
-    static func generateIcon(for vehicle: Vehicle, from photo: UIImage) async throws -> UIImage {
-        guard photo.cgImage != nil else { throw GenerationError.badImage }
-
+    /// Detects the car's paint color from the photo, on-device. The result
+    /// is shown to the user, who can correct it before generating.
+    static func detectPaint(of photo: UIImage) async -> String? {
+        guard photo.cgImage != nil else { return nil }
         let subject = await subjectCutout(of: photo) ?? photo
-        let paint = colorName(of: subject) ?? ""
+        return colorName(of: subject)
+    }
 
-        let prompt = "cute flat emoji sticker of a \(paint) \(vehicle.year) \(vehicle.make) \(vehicle.model) car, side view, simple rounded cartoon, thick outline, plain white background, no text"
+    static func generateIcon(for vehicle: Vehicle, paint: String) async throws -> UIImage {
+        // The color is stated twice: the generator weighs early and repeated
+        // words more, and paint color is what users notice first.
+        let prompt = "cute flat emoji sticker of a \(paint) \(vehicle.year) \(vehicle.make) \(vehicle.model) car with \(paint) paint, side view, simple rounded cartoon, thick outline, plain white background, no text"
         guard let encoded = prompt.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://image.pollinations.ai/prompt/\(encoded)?width=512&height=512&nologo=true&seed=\(Int.random(in: 0..<100_000))")
         else { throw GenerationError.serviceFailed }
@@ -70,9 +75,12 @@ enum VehicleIconGenerator {
         }.value
     }
 
-    /// Average color of non-transparent pixels, bucketed to a paint name.
+    /// Dominant paint color of the cutout. Averaging fails on cars —
+    /// windows, tires, and shadows drag the mean toward grey — so this
+    /// buckets saturated pixels by hue and takes the biggest bucket,
+    /// falling back to black/silver/white when the body is unsaturated.
     private static func colorName(of image: UIImage) -> String? {
-        let sample = 32
+        let sample = 64
         guard let cgImage = image.resized(maxDimension: CGFloat(sample)).cgImage else { return nil }
 
         let width = cgImage.width, height = cgImage.height
@@ -85,34 +93,52 @@ enum VehicleIconGenerator {
         ) else { return nil }
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-        var r = 0.0, g = 0.0, b = 0.0, count = 0.0
+        let hueNames = ["red", "orange", "yellow", "green", "blue", "purple", "pink"]
+        var hueWeight = [Double](repeating: 0, count: hueNames.count)
+        var opaque = 0.0, saturatedWeight = 0.0
+        var brightnessValues: [Double] = []
+
         for i in stride(from: 0, to: pixels.count, by: 4) where pixels[i + 3] > 128 {
-            r += Double(pixels[i])
-            g += Double(pixels[i + 1])
-            b += Double(pixels[i + 2])
-            count += 1
-        }
-        guard count > 0 else { return nil }
+            opaque += 1
+            var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0
+            UIColor(
+                red: CGFloat(pixels[i]) / 255,
+                green: CGFloat(pixels[i + 1]) / 255,
+                blue: CGFloat(pixels[i + 2]) / 255,
+                alpha: 1
+            ).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
+            brightnessValues.append(brightness)
 
-        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0
-        UIColor(
-            red: r / count / 255, green: g / count / 255, blue: b / count / 255, alpha: 1
-        ).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
+            // Glass, chrome, tires, and shadows are unsaturated or too dark
+            // to be paint; skip them for the hue vote.
+            guard saturation > 0.25, brightness > 0.15 else { continue }
+            let weight = Double(saturation * brightness)
+            saturatedWeight += weight
 
-        if saturation < 0.16 {
-            if brightness < 0.22 { return "black" }
-            if brightness < 0.65 { return "silver" }
-            return "white"
+            let bucket = switch hue * 360 {
+            case ..<15, 345...: 0
+            case ..<42: 1
+            case ..<70: 2
+            case ..<165: 3
+            case ..<255: 4
+            case ..<300: 5
+            default: 6
+            }
+            hueWeight[bucket] += weight
         }
-        switch hue * 360 {
-        case ..<15, 345...: return "red"
-        case ..<40: return "orange"
-        case ..<70: return "yellow"
-        case ..<165: return "green"
-        case ..<255: return "blue"
-        case ..<300: return "purple"
-        default: return "pink"
+        guard opaque > 0 else { return nil }
+
+        // A colored car shows plenty of saturated paint; a black/white/silver
+        // car doesn't, and its few saturated pixels are reflections.
+        if saturatedWeight >= opaque * 0.06,
+           let best = hueWeight.indices.max(by: { hueWeight[$0] < hueWeight[$1] }) {
+            return hueNames[best]
         }
+
+        let median = brightnessValues.sorted()[brightnessValues.count / 2]
+        if median < 0.25 { return "black" }
+        if median < 0.7 { return "silver" }
+        return "white"
     }
 }
 
