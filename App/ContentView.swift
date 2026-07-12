@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     let recorder: RecordingViewModel
     let garage: Garage
+    let backend: Backend
 
     var body: some View {
         TabView {
@@ -12,6 +13,8 @@ struct ContentView: View {
                 .tabItem { Label("Drives", systemImage: "list.bullet") }
             StatsView(garage: garage)
                 .tabItem { Label("Stats", systemImage: "chart.bar") }
+            SocialView(backend: backend)
+                .tabItem { Label("Social", systemImage: "person.2") }
             GarageView(garage: garage)
                 .tabItem { Label("Garage", systemImage: "car.2") }
         }
@@ -19,5 +22,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(recorder: RecordingViewModel(), garage: Garage())
+    ContentView(recorder: RecordingViewModel(), garage: Garage(), backend: Backend())
 }

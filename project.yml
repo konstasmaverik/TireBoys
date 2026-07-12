@@ -8,6 +8,9 @@ options:
 packages:
   DriveStatsCore:
     path: Packages/DriveStatsCore
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: 2.0.0
 
 targets:
   DriveStats:
@@ -17,6 +20,8 @@ targets:
       - App
     dependencies:
       - package: DriveStatsCore
+      - package: Supabase
+        product: Supabase
     info:
       path: App/Info.plist
       properties:

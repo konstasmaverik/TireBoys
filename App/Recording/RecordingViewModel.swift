@@ -28,6 +28,9 @@ final class RecordingViewModel {
     /// value without this model owning garage state.
     var vehicleIDProvider: (@MainActor () -> UUID?)?
 
+    /// Fired after a drive is persisted; the app uses it to trigger backend sync.
+    var onDriveSaved: (@MainActor () -> Void)?
+
     private let locationService: LocationService
     private let motionService: MotionActivityService
     private let store: JSONDriveStore?
@@ -98,6 +101,7 @@ final class RecordingViewModel {
         do {
             guard let store else { throw CocoaError(.fileWriteUnknown) }
             try store.save(finished.finish(vehicleID: vehicleIDProvider?()))
+            onDriveSaved?()
         } catch {
             saveError = "Could not save drive: \(error.localizedDescription)"
         }
