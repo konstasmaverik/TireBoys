@@ -1,10 +1,10 @@
 import DriveStatsCore
-import PhotosUI
 import SwiftUI
 
 struct GarageView: View {
     @Bindable var garage: Garage
     @State private var isAddingVehicle = false
+    @State private var editingVehicle: Vehicle?
 
     var body: some View {
         NavigationStack {
@@ -23,6 +23,8 @@ struct GarageView: View {
                                 isDefault: vehicle.id == garage.defaultVehicleID,
                                 makeDefault: { garage.defaultVehicleID = vehicle.id }
                             )
+                            .contentShape(Rectangle())
+                            .onTapGesture { editingVehicle = vehicle }
                         }
                         .onDelete { offsets in
                             for index in offsets {
@@ -41,9 +43,10 @@ struct GarageView: View {
                 }
             }
             .sheet(isPresented: $isAddingVehicle) {
-                AddVehicleSheet { make, model, year in
-                    garage.add(make: make, model: model, year: year)
-                }
+                VehicleEditorSheet(vehicle: nil) { garage.save($0) }
+            }
+            .sheet(item: $editingVehicle) { vehicle in
+                VehicleEditorSheet(vehicle: vehicle) { garage.save($0) }
             }
         }
     }
@@ -54,17 +57,10 @@ private struct VehicleRow: View {
     let isDefault: Bool
     let makeDefault: () -> Void
 
-    @State private var icon: UIImage?
-    @State private var photoItem: PhotosPickerItem?
-    @State private var isProcessing = false
-
     var body: some View {
         HStack(spacing: 12) {
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                iconView
-            }
-            .buttonStyle(.plain)
-
+            VehicleIconView(vehicle: vehicle, size: 22)
+                .frame(width: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(vehicle.make) \(vehicle.model)")
                     .font(.headline)
@@ -80,63 +76,33 @@ private struct VehicleRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(isDefault ? "Default vehicle" : "Make default")
         }
-        .onAppear {
-            icon = VehicleIconStore.load(for: vehicle.id)
-        }
-        .onChange(of: photoItem) { _, item in
-            guard let item else { return }
-            processPhoto(item)
-        }
-    }
-
-    @ViewBuilder
-    private var iconView: some View {
-        ZStack {
-            if let icon {
-                Image(uiImage: icon)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(systemName: "car.side.fill")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-            if isProcessing {
-                ProgressView()
-            }
-        }
-        .frame(width: 52, height: 40)
-    }
-
-    /// Lifts the car out of the chosen photo on-device; falls back to the
-    /// plain (resized) photo when no subject is detected.
-    private func processPhoto(_ item: PhotosPickerItem) {
-        isProcessing = true
-        Task {
-            defer {
-                isProcessing = false
-                photoItem = nil
-            }
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let photo = UIImage(data: data)
-            else { return }
-            let cutout = await VehicleIconMaker.makeIcon(from: photo)
-            let result = cutout ?? photo.resized(maxDimension: 256)
-            VehicleIconStore.save(result, for: vehicle.id)
-            icon = result
-        }
     }
 }
 
-private struct AddVehicleSheet: View {
-    let onAdd: (String, String, Int) -> Void
+/// Add and edit share one sheet; editing preserves id and creation date so
+/// drive tags stay attached.
+private struct VehicleEditorSheet: View {
+    let vehicle: Vehicle?
+    let onSave: (Vehicle) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var make = ""
-    @State private var model = ""
-    @State private var year = Calendar.current.component(.year, from: Date())
+    @State private var make: String
+    @State private var model: String
+    @State private var year: Int
+    @State private var bodyStyle: Vehicle.BodyStyle
+    @State private var colorHex: String
 
-    private var canAdd: Bool {
+    init(vehicle: Vehicle?, onSave: @escaping (Vehicle) -> Void) {
+        self.vehicle = vehicle
+        self.onSave = onSave
+        _make = State(initialValue: vehicle?.make ?? "")
+        _model = State(initialValue: vehicle?.model ?? "")
+        _year = State(initialValue: vehicle?.year ?? Calendar.current.component(.year, from: Date()))
+        _bodyStyle = State(initialValue: vehicle?.bodyStyle ?? .sedan)
+        _colorHex = State(initialValue: vehicle?.colorHex ?? VehiclePaint.palette[0])
+    }
+
+    private var canSave: Bool {
         !make.trimmingCharacters(in: .whitespaces).isEmpty
             && !model.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -144,37 +110,76 @@ private struct AddVehicleSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Make (e.g. Toyota)", text: $make)
-                    .textInputAutocapitalization(.words)
-                TextField("Model (e.g. Supra)", text: $model)
-                    .textInputAutocapitalization(.words)
-                Picker("Year", selection: $year) {
-                    let currentYear = Calendar.current.component(.year, from: Date())
-                    ForEach((1950...currentYear + 1).reversed(), id: \.self) { year in
-                        Text(String(year)).tag(year)
+                Section {
+                    TextField("Make (e.g. Toyota)", text: $make)
+                        .textInputAutocapitalization(.words)
+                    TextField("Model (e.g. Supra)", text: $model)
+                        .textInputAutocapitalization(.words)
+                    Picker("Year", selection: $year) {
+                        let currentYear = Calendar.current.component(.year, from: Date())
+                        ForEach((1950...currentYear + 1).reversed(), id: \.self) { year in
+                            Text(String(year)).tag(year)
+                        }
                     }
                 }
+
+                Section("Icon") {
+                    Picker("Body style", selection: $bodyStyle) {
+                        ForEach(Vehicle.BodyStyle.allCases, id: \.self) { style in
+                            Label(style.label, systemImage: style.symbolName).tag(style)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+
+                    HStack(spacing: 10) {
+                        ForEach(VehiclePaint.palette, id: \.self) { hex in
+                            Circle()
+                                .fill(Color(hex: hex))
+                                .frame(width: 28, height: 28)
+                                .overlay {
+                                    if hex == colorHex {
+                                        Circle().strokeBorder(.primary, lineWidth: 2)
+                                    } else {
+                                        Circle().strokeBorder(.quaternary, lineWidth: 1)
+                                    }
+                                }
+                                .onTapGesture { colorHex = hex }
+                        }
+                    }
+
+                    HStack {
+                        Spacer()
+                        Image(systemName: bodyStyle.symbolName)
+                            .font(.system(size: 44))
+                            .foregroundStyle(Color(hex: colorHex))
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
             }
-            .navigationTitle("Add Vehicle")
+            .navigationTitle(vehicle == nil ? "Add Vehicle" : "Edit Vehicle")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        onAdd(
-                            make.trimmingCharacters(in: .whitespaces),
-                            model.trimmingCharacters(in: .whitespaces),
-                            year
-                        )
+                    Button(vehicle == nil ? "Add" : "Save") {
+                        var saved = vehicle ?? Vehicle(make: "", model: "", year: year)
+                        saved.make = make.trimmingCharacters(in: .whitespaces)
+                        saved.model = model.trimmingCharacters(in: .whitespaces)
+                        saved.year = year
+                        saved.bodyStyle = bodyStyle
+                        saved.colorHex = colorHex
+                        onSave(saved)
                         dismiss()
                     }
-                    .disabled(!canAdd)
+                    .disabled(!canSave)
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 }
 

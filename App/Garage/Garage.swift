@@ -37,13 +37,12 @@ final class Garage {
         vehicles.first { $0.id == id }
     }
 
-    func add(make: String, model: String, year: Int) {
-        let vehicle = Vehicle(make: make, model: model, year: year)
+    /// Inserts or updates. The first car in the garage becomes default.
+    func save(_ vehicle: Vehicle) {
         do {
             guard let store else { throw CocoaError(.fileWriteUnknown) }
             try store.save(vehicle)
             reload()
-            // The first car in the garage becomes the default automatically.
             if defaultVehicleID == nil {
                 defaultVehicleID = vehicle.id
             }
@@ -57,7 +56,6 @@ final class Garage {
 
     func delete(id: UUID) {
         try? store?.delete(id: id)
-        VehicleIconStore.delete(for: id)
         reload()
         if defaultVehicleID == id {
             defaultVehicleID = vehicles.first?.id

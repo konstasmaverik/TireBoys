@@ -181,7 +181,9 @@ final class Backend {
     /// The cache-busting query makes replacements show up immediately.
     func uploadAvatar(_ jpegData: Data) async throws {
         guard let userID else { return }
-        let path = "\(userID.uuidString).jpg"
+        // Lowercased to match the RLS policy: auth.uid()::text is lowercase,
+        // Swift's uuidString is uppercase.
+        let path = "\(userID.uuidString.lowercased()).jpg"
         try await client.storage.from("avatars").upload(
             path,
             data: jpegData,

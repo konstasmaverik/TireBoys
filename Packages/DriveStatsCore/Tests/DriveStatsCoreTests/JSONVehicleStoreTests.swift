@@ -41,6 +41,19 @@ final class JSONVehicleStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadAll(), [])
     }
 
+    func testVehicleWithoutStyleKeysStillDecodes() throws {
+        // Vehicles saved before body style and color existed.
+        let legacyJSON = """
+        {"id":"22222222-2222-2222-2222-222222222222","make":"Toyota","model":"Supra",
+         "year":1998,"createdAt":"2026-07-11T10:00:00Z"}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let vehicle = try decoder.decode(Vehicle.self, from: Data(legacyJSON.utf8))
+        XCTAssertEqual(vehicle.bodyStyle, .sedan)
+        XCTAssertEqual(vehicle.colorHex, "#D0312D")
+    }
+
     func testUpdateOverwritesExisting() throws {
         var vehicle = Vehicle(make: "Ford", model: "Focus", year: 2018, createdAt: wholeSecondDate)
         try store.save(vehicle)

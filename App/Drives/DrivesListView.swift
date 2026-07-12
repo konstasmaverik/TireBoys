@@ -21,10 +21,20 @@ struct DrivesListView: View {
                 } else {
                     List {
                         ForEach(drives) { drive in
-                            DriveRow(drive: drive, vehicleName: garage.vehicle(for: drive.vehicleID)?.displayName)
-                                .contextMenu { vehicleMenu(for: drive) }
+                            NavigationLink(value: drive.id) {
+                                DriveRow(drive: drive, vehicle: garage.vehicle(for: drive.vehicleID))
+                            }
+                            .contextMenu { vehicleMenu(for: drive) }
                         }
                         .onDelete(perform: delete)
+                    }
+                    .navigationDestination(for: UUID.self) { driveID in
+                        if let drive = drives.first(where: { $0.id == driveID }) {
+                            DriveDetailView(
+                                drive: drive,
+                                vehicleName: garage.vehicle(for: drive.vehicleID)?.displayName
+                            )
+                        }
                     }
                 }
             }
@@ -79,7 +89,7 @@ struct DrivesListView: View {
 
 private struct DriveRow: View {
     let drive: Drive
-    let vehicleName: String?
+    let vehicle: Vehicle?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -87,9 +97,16 @@ private struct DriveRow: View {
                 Text(drive.startedAt, format: .dateTime.day().month().hour().minute())
                     .font(.headline)
                 Spacer()
-                Text(vehicleName ?? "Unassigned")
-                    .font(.caption)
-                    .foregroundStyle(vehicleName == nil ? .tertiary : .secondary)
+                if let vehicle {
+                    VehicleIconView(vehicle: vehicle, size: 13)
+                    Text(vehicle.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Unassigned")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
             HStack(spacing: 12) {
                 Label(Format.kilometers(drive.distanceMeters), systemImage: "road.lanes")
