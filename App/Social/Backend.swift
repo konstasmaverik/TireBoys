@@ -175,6 +175,27 @@ final class Backend {
             .execute().value
     }
 
+    // MARK: - Avatar
+
+    /// Uploads a JPEG to the avatars bucket and points the profile at it.
+    /// The cache-busting query makes replacements show up immediately.
+    func uploadAvatar(_ jpegData: Data) async throws {
+        guard let userID else { return }
+        let path = "\(userID.uuidString).jpg"
+        try await client.storage.from("avatars").upload(
+            path,
+            data: jpegData,
+            options: FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
+        )
+        let publicURL = try client.storage.from("avatars").getPublicURL(path: path)
+        let bustedURL = "\(publicURL.absoluteString)?v=\(Int(Date().timeIntervalSince1970))"
+        try await client.from("profiles")
+            .update(["avatar_url": bustedURL])
+            .eq("id", value: userID)
+            .execute()
+        await loadProfile()
+    }
+
     // MARK: - Drive sync
 
     /// Uploads aggregates of drives not yet synced. Route points never leave

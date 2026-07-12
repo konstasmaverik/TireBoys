@@ -10,6 +10,7 @@ struct GroupDetailView: View {
     @State private var period: StatsView.Period = .week
 
     enum Metric: String, CaseIterable, Identifiable {
+        case overall = "Overall"
         case topSpeed = "Top speed"
         case distance = "Distance"
         case timeInCar = "Time in car"
@@ -18,23 +19,41 @@ struct GroupDetailView: View {
 
         func value(of entry: LeaderboardEntry) -> Double {
             switch self {
+            case .overall: 0 // ranked via overallScore, which needs the whole group
             case .topSpeed: entry.topSpeedMetersPerSecond
             case .distance: entry.totalDistanceMeters
             case .timeInCar: entry.totalDurationSeconds
             }
         }
+    }
 
-        func formatted(_ entry: LeaderboardEntry) -> String {
-            switch self {
-            case .topSpeed: Format.kilometersPerHour(entry.topSpeedMetersPerSecond) + " km/h"
-            case .distance: Format.kilometers(entry.totalDistanceMeters)
-            case .timeInCar: Format.duration(entry.totalDurationSeconds)
-            }
+    /// Overall = each metric scored against the group's best (0–100),
+    /// averaged. The best all-rounder wins, not just the fastest.
+    private func overallScore(_ entry: LeaderboardEntry, in group: [LeaderboardEntry]) -> Double {
+        let metrics: [Metric] = [.topSpeed, .distance, .timeInCar]
+        let shares = metrics.compactMap { metric -> Double? in
+            guard let best = group.map({ metric.value(of: $0) }).max(), best > 0 else { return nil }
+            return metric.value(of: entry) / best
+        }
+        guard !shares.isEmpty else { return 0 }
+        return shares.reduce(0, +) / Double(shares.count) * 100
+    }
+
+    private func score(_ entry: LeaderboardEntry) -> Double {
+        metric == .overall ? overallScore(entry, in: entries) : metric.value(of: entry)
+    }
+
+    private func formattedScore(_ entry: LeaderboardEntry) -> String {
+        switch metric {
+        case .overall: String(format: "%.0f pts", overallScore(entry, in: entries))
+        case .topSpeed: Format.kilometersPerHour(entry.topSpeedMetersPerSecond) + " km/h"
+        case .distance: Format.kilometers(entry.totalDistanceMeters)
+        case .timeInCar: Format.duration(entry.totalDurationSeconds)
         }
     }
 
     private var ranked: [LeaderboardEntry] {
-        entries.sorted { metric.value(of: $0) > metric.value(of: $1) }
+        entries.sorted { score($0) > score($1) }
     }
 
     var body: some View {
@@ -60,6 +79,7 @@ struct GroupDetailView: View {
                             .font(.headline.monospacedDigit())
                             .foregroundStyle(rank == 0 ? .yellow : .secondary)
                             .frame(width: 28)
+                        AvatarView(urlString: entry.avatarURL, fallbackName: entry.username)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.username)
                                 .font(entry.id == backend.profile?.id ? .body.bold() : .body)
@@ -68,7 +88,7 @@ struct GroupDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text(metric.formatted(entry))
+                        Text(formattedScore(entry))
                             .font(.body.monospacedDigit())
                     }
                 }

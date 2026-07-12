@@ -6,6 +6,12 @@ import Foundation
 struct Profile: Codable, Equatable, Identifiable, Hashable {
     let id: UUID
     let username: String
+    var avatarURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, username
+        case avatarURL = "avatar_url"
+    }
 }
 
 struct Friendship: Codable, Equatable {
@@ -44,6 +50,7 @@ struct FriendGroup: Codable, Equatable, Identifiable, Hashable {
 struct LeaderboardEntry: Codable, Equatable, Identifiable {
     let id: UUID
     let username: String
+    let avatarURL: String?
     let totalDistanceMeters: Double
     let totalDurationSeconds: Double
     let topSpeedMetersPerSecond: Double
@@ -52,6 +59,7 @@ struct LeaderboardEntry: Codable, Equatable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id = "user_id"
         case username
+        case avatarURL = "avatar_url"
         case totalDistanceMeters = "total_distance_meters"
         case totalDurationSeconds = "total_duration_seconds"
         case topSpeedMetersPerSecond = "top_speed_mps"

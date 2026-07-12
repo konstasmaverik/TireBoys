@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct SocialView: View {
@@ -9,6 +10,8 @@ struct SocialView: View {
     @State private var newGroupName = ""
     @State private var inviteCode = ""
     @State private var actionError: String?
+    @State private var avatarItem: PhotosPickerItem?
+    @State private var isUploadingAvatar = false
 
     var body: some View {
         NavigationStack {
@@ -26,9 +29,27 @@ struct SocialView: View {
     private var signedInList: some View {
         List {
             Section {
-                HStack {
-                    Label(backend.profile?.username ?? "…", systemImage: "person.circle.fill")
-                        .font(.headline)
+                HStack(spacing: 12) {
+                    PhotosPicker(selection: $avatarItem, matching: .images) {
+                        ZStack {
+                            AvatarView(
+                                urlString: backend.profile?.avatarURL,
+                                fallbackName: backend.profile?.username ?? "?",
+                                size: 44
+                            )
+                            if isUploadingAvatar {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(backend.profile?.username ?? "…")
+                            .font(.headline)
+                        Text("Tap the picture to change it")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                     Spacer()
                     Button("Sign Out", role: .destructive) {
                         Task { try? await backend.signOut() }
@@ -40,7 +61,8 @@ struct SocialView: View {
             if !backend.incomingRequests.isEmpty {
                 Section("Friend requests") {
                     ForEach(backend.incomingRequests) { profile in
-                        HStack {
+                        HStack(spacing: 10) {
+                            AvatarView(urlString: profile.avatarURL, fallbackName: profile.username)
                             Text(profile.username)
                             Spacer()
                             Button("Accept") {
@@ -55,15 +77,19 @@ struct SocialView: View {
 
             Section {
                 ForEach(backend.friends) { friend in
-                    Text(friend.username)
-                        .swipeActions {
-                            Button("Remove", role: .destructive) {
-                                run { try await backend.removeFriendship(with: friend.id) }
-                            }
+                    HStack(spacing: 10) {
+                        AvatarView(urlString: friend.avatarURL, fallbackName: friend.username)
+                        Text(friend.username)
+                    }
+                    .swipeActions {
+                        Button("Remove", role: .destructive) {
+                            run { try await backend.removeFriendship(with: friend.id) }
                         }
+                    }
                 }
                 ForEach(backend.outgoingRequests) { pending in
-                    HStack {
+                    HStack(spacing: 10) {
+                        AvatarView(urlString: pending.avatarURL, fallbackName: pending.username)
                         Text(pending.username)
                         Spacer()
                         Text("Pending")
@@ -138,6 +164,29 @@ struct SocialView: View {
                 run { try await backend.joinGroup(inviteCode: code) }
             }
             Button("Cancel", role: .cancel) { inviteCode = "" }
+        }
+        .onChange(of: avatarItem) { _, item in
+            guard let item else { return }
+            uploadAvatar(item)
+        }
+    }
+
+    private func uploadAvatar(_ item: PhotosPickerItem) {
+        isUploadingAvatar = true
+        Task {
+            defer {
+                isUploadingAvatar = false
+                avatarItem = nil
+            }
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data),
+                  let jpeg = image.resized(maxDimension: 256).jpegData(compressionQuality: 0.8)
+            else { return }
+            do {
+                try await backend.uploadAvatar(jpeg)
+            } catch {
+                actionError = error.localizedDescription
+            }
         }
     }
 

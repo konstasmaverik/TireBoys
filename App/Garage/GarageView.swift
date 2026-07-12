@@ -1,4 +1,5 @@
 import DriveStatsCore
+import PhotosUI
 import SwiftUI
 
 struct GarageView: View {
@@ -53,8 +54,17 @@ private struct VehicleRow: View {
     let isDefault: Bool
     let makeDefault: () -> Void
 
+    @State private var icon: UIImage?
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isProcessing = false
+
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                iconView
+            }
+            .buttonStyle(.plain)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(vehicle.make) \(vehicle.model)")
                     .font(.headline)
@@ -69,6 +79,51 @@ private struct VehicleRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isDefault ? "Default vehicle" : "Make default")
+        }
+        .onAppear {
+            icon = VehicleIconStore.load(for: vehicle.id)
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            processPhoto(item)
+        }
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        ZStack {
+            if let icon {
+                Image(uiImage: icon)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "car.side.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            if isProcessing {
+                ProgressView()
+            }
+        }
+        .frame(width: 52, height: 40)
+    }
+
+    /// Lifts the car out of the chosen photo on-device; falls back to the
+    /// plain (resized) photo when no subject is detected.
+    private func processPhoto(_ item: PhotosPickerItem) {
+        isProcessing = true
+        Task {
+            defer {
+                isProcessing = false
+                photoItem = nil
+            }
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let photo = UIImage(data: data)
+            else { return }
+            let cutout = await VehicleIconMaker.makeIcon(from: photo)
+            let result = cutout ?? photo.resized(maxDimension: 256)
+            VehicleIconStore.save(result, for: vehicle.id)
+            icon = result
         }
     }
 }

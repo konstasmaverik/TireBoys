@@ -34,12 +34,12 @@ open DriveStats.xcodeproj
 ## Roadmap
 
 - [x] **M0 — Pipeline proof**: hello-world app, CI unsigned-.ipa build, sideload via AltStore
-- [ ] **M1 — Auth & profile**: Supabase, sign-up/log-in, unique username
+- [x] **M1 — Auth & profile**: Supabase, sign-up/log-in, unique username
 - [x] **M2 — Garage**: add/remove vehicles (make, model, year)
 - [x] **M3 — Drive recorder core**: manual-trigger recording, live HUD, GPS filtering, offline-first save
 - [x] **M4 — Automatic drive detection**: motion-activity triggers, background hardening
 - [x] **M5 — Stats**: aggregated personal stats
-- [ ] **M6 — Friends**: username search + friend requests
-- [ ] **M7 — Groups**: private friend groups via invite code
-- [ ] **M8 — Leaderboards**: per-group ranking, metric filters, live updates
+- [x] **M6 — Friends**: username search + friend requests
+- [x] **M7 — Groups**: private friend groups via invite code
+- [x] **M8 — Leaderboards**: per-group ranking, metric filters, live updates
 - [ ] **M9 — Polish**
