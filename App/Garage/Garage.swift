@@ -56,6 +56,7 @@ final class Garage {
 
     func delete(id: UUID) {
         try? store?.delete(id: id)
+        VehicleIconStore.delete(for: id)
         reload()
         if defaultVehicleID == id {
             defaultVehicleID = vehicles.first?.id

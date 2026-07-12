@@ -1,4 +1,5 @@
 import DriveStatsCore
+import PhotosUI
 import SwiftUI
 
 struct GarageView: View {
@@ -90,6 +91,13 @@ private struct VehicleEditorSheet: View {
     @State private var model: String
     @State private var year: Int
     @State private var emoji: String
+    /// Stable before save so a generated icon has somewhere to live.
+    @State private var vehicleID: UUID
+    @State private var generatedIcon: UIImage?
+    @State private var sourcePhoto: UIImage?
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isGenerating = false
+    @State private var generationError: String?
 
     init(vehicle: Vehicle?, onSave: @escaping (Vehicle) -> Void) {
         self.vehicle = vehicle
@@ -98,6 +106,9 @@ private struct VehicleEditorSheet: View {
         _model = State(initialValue: vehicle?.model ?? "")
         _year = State(initialValue: vehicle?.year ?? Calendar.current.component(.year, from: Date()))
         _emoji = State(initialValue: vehicle?.emoji ?? VehicleEmoji.suggestions[0])
+        let id = vehicle?.id ?? UUID()
+        _vehicleID = State(initialValue: id)
+        _generatedIcon = State(initialValue: VehicleIconStore.load(for: id))
     }
 
     private var canSave: Bool {
@@ -147,16 +158,81 @@ private struct VehicleEditorSheet: View {
                             .font(.system(size: 36))
                     }
                 }
+
+                Section {
+                    if let generatedIcon {
+                        HStack {
+                            Spacer()
+                            Image(uiImage: generatedIcon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 72)
+                            Spacer()
+                        }
+                    }
+                    PhotosPicker(selection: $photoItem, matching: .images) {
+                        Label(
+                            generatedIcon == nil ? "Generate from a photo" : "Generate from another photo",
+                            systemImage: "sparkles"
+                        )
+                    }
+                    if sourcePhoto != nil || generatedIcon != nil {
+                        Button {
+                            generate()
+                        } label: {
+                            Label("Re-roll", systemImage: "dice")
+                        }
+                        .disabled(sourcePhoto == nil || isGenerating)
+                        Button("Remove generated icon", role: .destructive) {
+                            VehicleIconStore.delete(for: vehicleID)
+                            generatedIcon = nil
+                        }
+                    }
+                    if isGenerating {
+                        HStack {
+                            ProgressView()
+                            Text("Generating…")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let generationError {
+                        Text(generationError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("Cartoon icon")
+                } footer: {
+                    Text("Detects the car's color on this device, then a free service draws the cartoon. The photo never leaves your phone. Needs internet; quality varies — re-roll for a new take.")
+                }
+                .onChange(of: photoItem) { _, item in
+                    guard let item else { return }
+                    Task {
+                        defer { photoItem = nil }
+                        guard let data = try? await item.loadTransferable(type: Data.self),
+                              let photo = UIImage(data: data)
+                        else { return }
+                        sourcePhoto = photo
+                        generate()
+                    }
+                }
             }
             .navigationTitle(vehicle == nil ? "Add Vehicle" : "Edit Vehicle")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        // Don't strand an icon generated for a vehicle that
+                        // was never saved.
+                        if vehicle == nil {
+                            VehicleIconStore.delete(for: vehicleID)
+                        }
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(vehicle == nil ? "Add" : "Save") {
-                        var saved = vehicle ?? Vehicle(make: "", model: "", year: year)
+                        var saved = vehicle ?? Vehicle(id: vehicleID, make: "", model: "", year: year)
                         saved.make = make.trimmingCharacters(in: .whitespaces)
                         saved.model = model.trimmingCharacters(in: .whitespaces)
                         saved.year = year
@@ -169,6 +245,30 @@ private struct VehicleEditorSheet: View {
             }
         }
         .presentationDetents([.large])
+    }
+
+    private func generate() {
+        guard let sourcePhoto else { return }
+        generationError = nil
+        isGenerating = true
+        Task {
+            defer { isGenerating = false }
+            // Uses the form's current values so the prompt matches what the
+            // user typed, even before saving.
+            let described = Vehicle(
+                id: vehicleID,
+                make: make.trimmingCharacters(in: .whitespaces),
+                model: model.trimmingCharacters(in: .whitespaces),
+                year: year
+            )
+            do {
+                let icon = try await VehicleIconGenerator.generateIcon(for: described, from: sourcePhoto)
+                VehicleIconStore.save(icon, for: vehicleID)
+                generatedIcon = icon
+            } catch {
+                generationError = error.localizedDescription
+            }
+        }
     }
 }
 
