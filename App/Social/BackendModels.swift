@@ -67,6 +67,24 @@ struct LeaderboardEntry: Codable, Equatable, Identifiable {
     }
 }
 
+struct GroupActivity: Codable, Equatable {
+    let groupName: String
+    let username: String
+    let startedAt: Date
+    let distanceMeters: Double
+    let topSpeedMetersPerSecond: Double
+    let uploadedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case groupName = "group_name"
+        case username
+        case startedAt = "started_at"
+        case distanceMeters = "distance_meters"
+        case topSpeedMetersPerSecond = "top_speed_mps"
+        case uploadedAt = "uploaded_at"
+    }
+}
+
 struct RemoteDrive: Codable {
     let id: UUID
     let userID: UUID

@@ -33,6 +33,9 @@ targets:
         NSMotionUsageDescription: Motion activity is used to detect when a drive starts and ends so recording can happen automatically.
         UIBackgroundModes:
           - location
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.drivestats.refresh
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.drivestats.app

@@ -132,6 +132,7 @@ final class RecordingViewModel {
 
     private func applyAutoDetectState() {
         if isAutoDetectEnabled {
+            Notifier.ensureAuthorized()
             locationService.requestAlwaysAuthorization()
             locationService.startMonitoringSignificantChanges()
             motionService.startUpdates()
@@ -154,17 +155,31 @@ final class RecordingViewModel {
         updateTickTimer()
     }
 
+    /// Manual start/stop gets haptics; auto transitions happen with the
+    /// phone away, so those get notifications instead.
     private func apply(_ decision: DriveDetectionPolicy.Decision?) {
         switch decision {
         case .startDrive:
             startDrive()
-            if !isRecording {
+            if isRecording {
+                Notifier.post(
+                    title: "Drive started",
+                    body: "Looks like you're driving — recording automatically."
+                )
+            } else {
                 // startDrive refused (authorization lost); keep policy honest
                 // so it can decide to start again later.
                 policy.syncRecordingState(isRecording: false)
             }
         case .stopDrive:
+            let summary = accumulator
             stopDrive()
+            if let summary, !summary.points.isEmpty {
+                Notifier.post(
+                    title: "Drive saved",
+                    body: "\(Format.distance(summary.distanceMeters)) · top \(Format.speedWithUnit(summary.topSpeedMetersPerSecond))"
+                )
+            }
         case nil:
             break
         }

@@ -33,9 +33,11 @@ final class Backend {
         for await (_, session) in client.auth.authStateChanges {
             self.session = session
             if session != nil {
+                Notifier.ensureAuthorized()
                 await loadProfile()
                 await refreshSocial()
                 await syncLocalDrives()
+                await checkGroupActivity()
             } else {
                 profile = nil
                 friends = []
@@ -173,6 +175,49 @@ final class Backend {
         return try await client
             .rpc("group_leaderboard", params: Params(p_group_id: groupID, p_since: since))
             .execute().value
+    }
+
+    // MARK: - Group activity notifications
+
+    private static let activityWatermarkKey = "groupActivityWatermark"
+
+    /// Fetches group members' new drives since the last check and posts
+    /// local notifications. Called from background refresh and on launch.
+    func checkGroupActivity() async {
+        guard isSignedIn else { return }
+
+        let defaults = UserDefaults.standard
+        guard let watermark = defaults.object(forKey: Self.activityWatermarkKey) as? Date else {
+            // First run: start the clock now instead of spamming history.
+            defaults.set(Date(), forKey: Self.activityWatermarkKey)
+            return
+        }
+
+        struct Params: Encodable {
+            let p_since: Date
+        }
+        guard let activity: [GroupActivity] = try? await client
+            .rpc("recent_group_activity", params: Params(p_since: watermark))
+            .execute().value,
+            !activity.isEmpty
+        else { return }
+
+        defaults.set(activity.map(\.uploadedAt).max() ?? Date(), forKey: Self.activityWatermarkKey)
+
+        // One notification per drive is spammy when several land at once;
+        // collapse per group beyond the first two.
+        for item in activity.prefix(2) {
+            Notifier.post(
+                title: "\(item.username) drove — \(item.groupName)",
+                body: "\(Format.distance(item.distanceMeters)) · top \(Format.speedWithUnit(item.topSpeedMetersPerSecond))"
+            )
+        }
+        if activity.count > 2 {
+            Notifier.post(
+                title: "More drives in your groups",
+                body: "\(activity.count - 2) more — check the leaderboards."
+            )
+        }
     }
 
     // MARK: - Avatar

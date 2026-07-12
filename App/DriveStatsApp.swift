@@ -1,3 +1,4 @@
+import BackgroundTasks
 import SwiftUI
 
 @main
@@ -9,6 +10,10 @@ struct DriveStatsApp: App {
     @State private var recorder: RecordingViewModel
     @State private var backend: Backend
 
+    @Environment(\.scenePhase) private var scenePhase
+
+    private static let refreshTaskID = "com.drivestats.refresh"
+
     init() {
         let garage = Garage()
         let recorder = RecordingViewModel()
@@ -18,11 +23,38 @@ struct DriveStatsApp: App {
         _garage = State(initialValue: garage)
         _recorder = State(initialValue: recorder)
         _backend = State(initialValue: backend)
+
+        // Free-Apple-ID apps have no push; periodic background refresh plus
+        // local notifications is the substitute. iOS decides the cadence.
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTaskID, using: nil) { task in
+            Self.scheduleBackgroundRefresh()
+            let work = Task { @MainActor in
+                await backend.checkGroupActivity()
+                task.setTaskCompleted(success: true)
+            }
+            task.expirationHandler = { work.cancel() }
+        }
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView(recorder: recorder, garage: garage, backend: backend)
         }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                Self.scheduleBackgroundRefresh()
+            case .active:
+                Task { await backend.checkGroupActivity() }
+            default:
+                break
+            }
+        }
+    }
+
+    private static func scheduleBackgroundRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: refreshTaskID)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 30 * 60)
+        try? BGTaskScheduler.shared.submit(request)
     }
 }
