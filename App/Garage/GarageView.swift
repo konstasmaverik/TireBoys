@@ -96,9 +96,11 @@ private struct VehicleEditorSheet: View {
     @State private var generatedIcon: UIImage?
     @State private var sourcePhoto: UIImage?
     @State private var photoItem: PhotosPickerItem?
+    @State private var importItem: PhotosPickerItem?
     @State private var isGenerating = false
     @State private var generationError: String?
     @State private var paint = ""
+    @State private var promptCopied = false
 
     private static let paintNames = [
         "red", "orange", "yellow", "green", "blue", "purple",
@@ -176,6 +178,20 @@ private struct VehicleEditorSheet: View {
                             Spacer()
                         }
                     }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Best quality: generate the icon in the Gemini app with your car photo and the standard prompt, save it, then import it here.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            UIPasteboard.general.string = VehicleIconGenerator.standardPrompt
+                            promptCopied = true
+                        } label: {
+                            Label(promptCopied ? "Prompt copied!" : "Copy icon prompt", systemImage: promptCopied ? "checkmark" : "doc.on.doc")
+                        }
+                    }
+                    PhotosPicker(selection: $importItem, matching: .images) {
+                        Label("Import icon image", systemImage: "square.and.arrow.down")
+                    }
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         Label("Make sticker from a photo", systemImage: "person.crop.square.badge.camera")
                     }
@@ -240,6 +256,27 @@ private struct VehicleEditorSheet: View {
                             paint = detected
                         }
                         generateSticker(from: photo)
+                    }
+                }
+                .onChange(of: importItem) { _, item in
+                    guard let item else { return }
+                    isGenerating = true
+                    generationError = nil
+                    Task {
+                        defer {
+                            importItem = nil
+                            isGenerating = false
+                        }
+                        guard let data = try? await item.loadTransferable(type: Data.self),
+                              let image = UIImage(data: data)
+                        else { return }
+                        do {
+                            let icon = try await VehicleIconGenerator.importedIcon(from: image)
+                            VehicleIconStore.save(icon, for: vehicleID)
+                            generatedIcon = icon
+                        } catch {
+                            generationError = error.localizedDescription
+                        }
                     }
                 }
             }

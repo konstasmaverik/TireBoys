@@ -33,6 +33,23 @@ enum VehicleIconGenerator {
         return colorName(of: subject)
     }
 
+    /// The one shared style prompt. Users paste this into the Gemini app
+    /// (or any generator) with their car photo, so every icon in every
+    /// garage comes out in the same style.
+    static let standardPrompt = """
+    Redraw the car in this photo as a cute flat emoji sticker: simple rounded \
+    cartoon with thick outlines, side view, plain white background, no text. \
+    Keep the real car's shape, paint color, and distinctive details recognizable.
+    """
+
+    /// Imports an already-generated icon image: background lifted off
+    /// on-device, no restyling.
+    static func importedIcon(from image: UIImage) async throws -> UIImage {
+        guard image.cgImage != nil else { throw GenerationError.badImage }
+        let cutout = await subjectCutout(of: image) ?? image
+        return cutout.resized(maxDimension: 256)
+    }
+
     /// Fully on-device sticker: the car is lifted from the photo, its colors
     /// flattened into cartoon-like bands, and a thick white sticker outline
     /// drawn around it. Deterministic and offline.
